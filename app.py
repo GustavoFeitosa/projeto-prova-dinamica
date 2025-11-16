@@ -15,8 +15,11 @@ try:
     MODEL = "gemini-2.5-flash" 
     # st.toast("✅ Configuração da API bem-sucedida.") # Opcional
 except Exception as e:
-    st.error(f"❌ Erro ao configurar a API. Verifique sua chave nos Secrets: {e}")
+    # Mostra o erro de forma mais amigável, sem expor a chave
+    st.error(f"❌ Erro ao configurar a API. Por favor, verifique se a chave está configurada corretamente nos Secrets do Streamlit Cloud.")
+    st.info("Certifique-se de que a chave está no formato: API_KEY = \"SUA_CHAVE_AQUI\"")
     client = None
+    st.stop() # Interrompe a execução para evitar erros adicionais
 
 # Configurações globais
 LARGURA = 80 # Largura não é mais crucial, mas mantemos o conceito.
@@ -179,15 +182,26 @@ def avaliar_resposta(questao, resposta_digitada, rigor_nivel):
         st.error(f"Erro na avaliação: {e}")
         return critica, nota, resposta_esperada
 
-
 # ==============================================================================
 # 3. INTERFACE STREAMLIT
 # ==============================================================================
 
 st.set_page_config(layout="wide", page_title="📝 Prova Dinâmica Gemini")
 
-st.title("📝 Gerador e Avaliador de Provas (Gemini)")
-st.caption("Centralize o controle da dificuldade, rigor e aplicação de provas para seus alunos.")
+# --- CABEÇALHO COM LOGO E AUTORIA ---
+col1, col2 = st.columns([1, 4])
+with col1:
+    # Ajuste o nome do arquivo da imagem e o caminho se necessário
+    # Certifique-se de que 'zumtec_logo.png' está no mesmo diretório do app.py
+    try:
+        st.image("zumtec_logo.png", width=100) 
+    except FileNotFoundError:
+        st.warning("Logo 'zumtec_logo.png' não encontrado no repositório.")
+with col2:
+    st.title("📝 Gerador e Avaliador de Provas (Gemini)")
+    st.caption("Centralize o controle da dificuldade, rigor e aplicação de provas para seus alunos.")
+    st.caption("Criado por Dr. Gustavo Feitosa (Zumtec Digital Health Solutions)")
+st.markdown("---") # Separador para o cabeçalho
 
 # --- BARRA LATERAL PARA CONFIGURAÇÃO ---
 with st.sidebar:
@@ -231,6 +245,55 @@ with st.sidebar:
         else:
             st.warning("Por favor, faça o upload dos materiais de estudo.")
 
+# --- LÓGICA DE CORREÇÃO E AVANÇO ---
+def corrigir_e_avancar():
+    indice = st.session_state.indice_questao
+    questao_atual = st.session_state.questoes_geradas[indice]
+    
+    # Pega a resposta do text_area usando a chave
+    resposta_digitada = st.session_state[f"resposta_q_{indice}"] 
+    
+    if not resposta_digitada.strip():
+        st.error("Sua resposta está vazia.")
+        return # Não avança se a resposta for vazia
+
+    with st.spinner("🔎 Avaliando a resposta..."):
+        # Avalia a resposta usando o nível de rigor da sidebar
+        critica, nota, resposta_esperada = avaliar_resposta(
+            questao_atual, resposta_digitada, rigor
+        )
+    
+    # Armazena o resultado no placar
+    st.session_state.placar.append({
+        "Questão": f"Q{indice + 1}",
+        "Conteúdo": questao_atual,
+        "Resposta_Aluno": resposta_digitada,
+        "Critica_Avaliador": critica,
+        "Resposta_Esperada": resposta_esperada,
+        "Nota": nota
+    })
+    
+    # --- Exibe o Feedback Imediato ---
+    st.subheader(f"Feedback da Questão {indice + 1}")
+    
+    if nota >= 7.0:
+        st.balloons()
+        st.success(f"✨ NOTA FINAL: {nota:.1f}/10 - Ótimo trabalho!")
+    elif nota >= 5.0:
+        st.warning(f"🟡 NOTA FINAL: {nota:.1f}/10 - Você está quase lá, revise a crítica abaixo.")
+    else:
+        st.error(f"🔴 NOTA FINAL: {nota:.1f}/10 - Revise o conteúdo.")
+
+    with st.expander("Ver Crítica e Resposta Esperada"):
+        st.markdown(f"**Crítica:** \n\n {critica}")
+        if nota < 7.0:
+            st.markdown(f"**Oportunidade de Aprendizado (Resposta Esperada):** \n\n {resposta_esperada}")
+            
+    # Avança para a próxima questão
+    st.session_state.indice_questao += 1
+    # st.experimental_rerun() # Não é mais necessário aqui
+
+
 # --- ÁREA PRINCIPAL DA PROVA ---
 
 if st.session_state.prova_iniciada and st.session_state.indice_questao < NUM_QUESTOES:
@@ -245,55 +308,15 @@ if st.session_state.prova_iniciada and st.session_state.indice_questao < NUM_QUE
     st.markdown(f"---")
 
     # Área de resposta
-    resposta_digitada = st.text_area(
+    # Adicionamos uma chave única e o on_change para acionar a correção
+    st.text_area(
         "✍️ DIGITE SUA RESPOSTA AQUI:", 
         height=200, 
-        key=f"resposta_q_{indice}" # Chave única para evitar conflitos
+        key=f"resposta_q_{indice}" 
     )
     
-    col_send, col_spacer = st.columns([1, 4])
+    st.button("Corrigir e Próxima Questão", on_click=corrigir_e_avancar)
 
-    with col_send:
-        # Botão para enviar e corrigir a questão
-        if st.button("Corrigir e Próxima Questão"):
-            if not resposta_digitada.strip():
-                st.error("Sua resposta está vazia.")
-            else:
-                with st.spinner("🔎 Avaliando a resposta..."):
-                    # Avalia a resposta usando o nível de rigor da sidebar
-                    critica, nota, resposta_esperada = avaliar_resposta(
-                        questao_atual, resposta_digitada, rigor
-                    )
-                
-                # Armazena o resultado no placar
-                st.session_state.placar.append({
-                    "Questão": f"Q{indice + 1}",
-                    "Conteúdo": questao_atual,
-                    "Resposta_Aluno": resposta_digitada,
-                    "Critica_Avaliador": critica,
-                    "Resposta_Esperada": resposta_esperada,
-                    "Nota": nota
-                })
-                
-                # --- Exibe o Feedback Imediato ---
-                st.subheader(f"Feedback da Questão {indice + 1}")
-                
-                if nota >= 7.0:
-                    st.balloons()
-                    st.success(f"✨ NOTA FINAL: {nota:.1f}/10 - Ótimo trabalho!")
-                elif nota >= 5.0:
-                    st.warning(f"🟡 NOTA FINAL: {nota:.1f}/10 - Você está quase lá, revise a crítica abaixo.")
-                else:
-                    st.error(f"🔴 NOTA FINAL: {nota:.1f}/10 - Revise o conteúdo.")
-
-                with st.expander("Ver Crítica e Resposta Esperada"):
-                    st.markdown(f"**Crítica:** \n\n {critica}")
-                    if nota < 7.0:
-                        st.markdown(f"**Oportunidade de Aprendizado (Resposta Esperada):** \n\n {resposta_esperada}")
-                
-                # Avança para a próxima questão
-                st.session_state.indice_questao += 1
-                st.experimental_rerun() # Força a atualização da página para a próxima questão
 
 # --- RELATÓRIO FINAL ---
 elif st.session_state.prova_iniciada and st.session_state.indice_questao >= NUM_QUESTOES:
@@ -312,11 +335,13 @@ elif st.session_state.prova_iniciada and st.session_state.indice_questao >= NUM_
 
     # Função para gerar o arquivo Excel em memória (Buffer)
     def to_excel(df):
-        output = pd.ExcelWriter('Relatorio_Prova_Gemini.xlsx', engine='xlsxwriter')
-        df.to_excel(output, index=False, sheet_name='Resultados Completos')
-        output.close()
-        # Retorna o buffer para download
-        return output.disk_file
+        # Usamos BytesIO para criar o arquivo em memória
+        import io
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='Resultados Completos')
+        output.seek(0) # Volta para o início do buffer
+        return output
 
     # Botão de download
     excel_buffer = to_excel(df_placar)
