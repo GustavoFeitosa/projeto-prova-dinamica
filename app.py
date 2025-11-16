@@ -188,19 +188,19 @@ def avaliar_resposta(questao, resposta_digitada, rigor_nivel):
 
 st.set_page_config(layout="wide", page_title="📝 Prova Dinâmica Gemini")
 
-# --- CABEÇALHO COM LOGO E AUTORIA ---
+# --- CABEÇALHO COM LOGO MAIOR E AUTORIA EM DESTAQUE ---
 col1, col2 = st.columns([1, 4])
 with col1:
-    # Ajuste o nome do arquivo da imagem e o caminho se necessário
-    # Certifique-se de que 'zumtec_logo.png' está no mesmo diretório do app.py
+    # AJUSTE 1: Aumentamos a largura da imagem para 150 (estava em 100)
     try:
-        st.image("zumtec_logo.png", width=100) 
+        st.image("zumtec_logo.png", width=150) 
     except FileNotFoundError:
         st.warning("Logo 'zumtec_logo.png' não encontrado no repositório.")
 with col2:
     st.title("📝 Gerador e Avaliador de Provas (Gemini)")
     st.caption("Centralize o controle da dificuldade, rigor e aplicação de provas para seus alunos.")
-    st.caption("Criado por Dr. Gustavo Feitosa (Zumtec Digital Health Solutions)")
+    # AJUSTE 2: Usamos markdown para destacar o texto da autoria (maior e negrito)
+    st.markdown("Criado por **Dr. Gustavo Feitosa** (Zumtec Digital Health Solutions)")
 st.markdown("---") # Separador para o cabeçalho
 
 # --- BARRA LATERAL PARA CONFIGURAÇÃO ---
